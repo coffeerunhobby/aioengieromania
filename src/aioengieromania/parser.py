@@ -8,6 +8,7 @@ cannot take down a whole update.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from .models import (
@@ -41,7 +42,8 @@ def parse_places(payload: Any) -> list[Place]:
     for row in rows or []:
         if not isinstance(row, dict) or not row.get("poc_number"):
             continue
-        address = row.get("address") if isinstance(row.get("address"), dict) else {}
+        raw_address = row.get("address")
+        address: dict[str, Any] = raw_address if isinstance(raw_address, dict) else {}
         places.append(
             Place(
                 poc=str(row["poc_number"]),
@@ -111,7 +113,7 @@ def parse_invoices(payload: Any) -> list[Invoice]:
                     consumption_kwh=to_float(row.get("energy_consumption")),
                 )
             )
-    invoices.sort(key=lambda i: i.issue_date or to_date("1970-01-01"), reverse=True)
+    invoices.sort(key=lambda i: i.issue_date or date.min, reverse=True)
     return invoices
 
 
@@ -126,7 +128,7 @@ def parse_payments(payload: Any) -> list[Payment]:
         for row in (data if isinstance(data, list) else [])
         if isinstance(row, dict)
     ]
-    payments.sort(key=lambda p: p.paid_at or to_date("1970-01-01"), reverse=True)
+    payments.sort(key=lambda p: p.paid_at or date.min, reverse=True)
     return payments
 
 

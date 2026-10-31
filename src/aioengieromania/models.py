@@ -128,7 +128,7 @@ class PointData:
     @property
     def latest_invoice(self) -> Invoice | None:
         dated = [i for i in self.invoices if i.issue_date]
-        return max(dated, key=lambda i: i.issue_date) if dated else None
+        return max(dated, key=lambda i: i.issue_date or date.min) if dated else None
 
     @property
     def unpaid_invoices(self) -> list[Invoice]:
@@ -149,7 +149,7 @@ class PointData:
     @property
     def latest_payment(self) -> Payment | None:
         dated = [p for p in self.payments if p.paid_at]
-        return max(dated, key=lambda p: p.paid_at) if dated else None
+        return max(dated, key=lambda p: p.paid_at or date.min) if dated else None
 
     def meter(self, division: str) -> Meter | None:
         return next((m for m in self.meters if m.division == division), None)

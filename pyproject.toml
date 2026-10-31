@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aioengieromania"
-version = "0.1.0"
+version = "0.1.1"
 description = "Async client for MyENGIE România accounts: places, meters, invoices, payments and self-readings."
 readme = "README.md"
 license = "MIT"
@@ -29,7 +29,7 @@ Source = "https://github.com/coffeerunhobby/aioengieromania"
 Issues = "https://github.com/coffeerunhobby/aioengieromania/issues"
 
 [dependency-groups]
-test = ["pytest>=8", "pytest-asyncio>=0.24", "pytest-cov"]
+test = ["pytest>=8", "pytest-asyncio>=0.24", "pytest-cov", "mypy"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "README.md", "LICENSE"]
@@ -37,6 +37,10 @@ include = ["src", "tests", "README.md", "LICENSE"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+files = ["src"]
 
 [tool.ruff]
 line-length = 110
