@@ -25,11 +25,14 @@ stable per installation. Payments are per client rather than per place:
 
 `async_submit_index(point, meter, index)` reports a self-read meter index. ENGIE only
 accepts it inside the meter's self-reading window (`meter.self_read_open(today)`);
-a refusal raises `EngieRejectedError` carrying ENGIE's reason.
+a refusal raises `EngieRejectedError` carrying ENGIE's reason. It returns only once
+ENGIE confirms the reading; a missing or unconfirmed answer raises
+`EngieConnectionError`, since the reading may still have arrived.
 
 Errors: `EngieAuthError` (credentials rejected), `EngieConnectionError` (unreachable or
 timed out), `EngieRejectedError` (a submission was refused), all subclasses of
-`EngieError`.
+`EngieError`. Error messages never quote the request URL, which carries place and
+client numbers.
 
 ## License
 

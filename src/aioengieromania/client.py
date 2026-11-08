@@ -44,6 +44,12 @@ from .parser import (
 )
 
 
+def _unreachable(err: aiohttp.ClientError) -> EngieConnectionError:
+    """A fixed message: aiohttp's own text can quote the URL, which carries
+    place and client numbers."""
+    return EngieConnectionError(f"MyENGIE could not be reached ({type(err).__name__})")
+
+
 def _window(days: int) -> dict[str, str]:
     today = date.today()
     return {"startDate": (today - timedelta(days=days)).isoformat(), "endDate": today.isoformat()}
@@ -132,7 +138,7 @@ class EngieClient:
                 body = await self._decode(resp)
                 status = resp.status
         except aiohttp.ClientError as err:
-            raise EngieConnectionError(str(err)) from err
+            raise _unreachable(err) from err
         except TimeoutError as err:
             raise EngieConnectionError("MyENGIE did not answer the login in time") from err
 
@@ -192,6 +198,9 @@ class EngieClient:
                         body = await self._decode(resp)
                         if resp.status >= 400 or (isinstance(body, dict) and body.get("error")):
                             raise EngieRejectedError(rejection_reason(body))
+                        # Only ENGIE's own envelope saying ``error: false`` confirms it.
+                        if not (isinstance(body, dict) and body.get("error") is False):
+                            raise EngieConnectionError("MyENGIE did not confirm the submission")
                         return body
                     if resp.status == 404:
                         return None
@@ -200,7 +209,7 @@ class EngieClient:
                         raise EngieError(f"MyENGIE API error: HTTP {resp.status}")
                     return await self._decode(resp)
             except aiohttp.ClientError as err:
-                raise EngieConnectionError(str(err)) from err
+                raise _unreachable(err) from err
             except TimeoutError as err:
                 raise EngieConnectionError("MyENGIE did not answer in time") from err
         raise EngieAuthError("Could not authenticate with MyENGIE")
@@ -281,7 +290,12 @@ class EngieClient:
         return point
 
     async def async_submit_index(self, point: PointData, meter: Meter, index: int) -> None:
-        """Report a self-read meter index. Raises EngieRejectedError when refused."""
+        """Report a self-read meter index.
+
+        Returns only when ENGIE confirms it. Raises :class:`EngieRejectedError`
+        when refused, and :class:`EngieConnectionError` when the answer is missing
+        or unconfirmed: the reading may still have arrived.
+        """
         await self._request(
             "POST",
             SUBMIT_INDEX_PATH,

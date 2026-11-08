@@ -62,6 +62,8 @@ class FakeEngie:
         answer = queue.pop(0) if len(queue) > 1 else queue[0]
         if answer.get("delay"):
             await asyncio.sleep(answer["delay"])
+        if "redirect" in answer:
+            raise web.HTTPFound(answer["redirect"])
         if "text" in answer:
             return web.Response(
                 status=answer.get("status", 200), text=answer["text"], content_type="text/html"
@@ -206,6 +208,26 @@ async def test_a_refused_submission_carries_engies_reason(fake, client, status):
     meter = (await client.async_get_meters(P.POC_A, P.PA))[0]
     with pytest.raises(EngieRejectedError, match="Index prea mic"):
         await client.async_submit_index(PointData(poc=P.POC_A, pa=P.PA), meter, 1)
+
+
+@pytest.mark.parametrize("answer", [{}, [], None, {"data": None}])
+async def test_a_submission_counts_only_when_engie_confirms_it(fake, client, answer):
+    logged_in(fake)
+    a_place(fake)
+    fake.on("POST", "/v1/index", json=answer)
+    meter = (await client.async_get_meters(P.POC_A, P.PA))[0]
+    with pytest.raises(EngieConnectionError, match="did not confirm"):
+        await client.async_submit_index(PointData(poc=P.POC_A, pa=P.PA), meter, 1300)
+
+
+async def test_a_connection_error_never_quotes_the_url(fake, client):
+    logged_in(fake)
+    path = f"/v1/placesofconsumption/divisions/{P.POC_A}"
+    fake.on("GET", path, redirect=f"{path}?pa={P.PA}")
+    with pytest.raises(EngieConnectionError) as err:
+        await client.async_get_meters(P.POC_A, P.PA)
+    assert P.POC_A in str(err.value.__cause__)
+    assert P.POC_A not in str(err.value) and P.PA not in str(err.value)
 
 
 async def test_timeouts_and_maintenance_pages_are_connection_errors(fake, client):

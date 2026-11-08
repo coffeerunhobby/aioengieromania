@@ -29,6 +29,15 @@ def unwrap(payload: Any) -> Any:
     return payload
 
 
+def _list(value: Any) -> list[Any]:
+    """``value`` when it is a list, else empty: a string or number is not a list of rows."""
+    return value if isinstance(value, list) else []
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _str(value: Any) -> str | None:
     if value is None or value == "":
         return None
@@ -37,13 +46,11 @@ def _str(value: Any) -> str | None:
 
 def parse_places(payload: Any) -> list[Place]:
     data = unwrap(payload)
-    rows = data.get("places_of_consumption") if isinstance(data, dict) else None
     places: list[Place] = []
-    for row in rows or []:
+    for row in _list(_dict(data).get("places_of_consumption")):
         if not isinstance(row, dict) or not row.get("poc_number"):
             continue
-        raw_address = row.get("address")
-        address: dict[str, Any] = raw_address if isinstance(raw_address, dict) else {}
+        address = _dict(row.get("address"))
         places.append(
             Place(
                 poc=str(row["poc_number"]),
@@ -51,7 +58,7 @@ def parse_places(payload: Any) -> list[Place]:
                 address=_str(address.get("inline")),
                 contract_accounts=[
                     str(c["contract_account_number"])
-                    for c in row.get("cont_contract") or []
+                    for c in _list(row.get("cont_contract"))
                     if isinstance(c, dict) and c.get("contract_account_number")
                 ],
             )
@@ -62,9 +69,8 @@ def parse_places(payload: Any) -> list[Place]:
 def parse_divisions(payload: Any) -> list[Meter]:
     """Meters at a place, from the divisions call (keyed ``<poc>_<serial>``)."""
     data = unwrap(payload)
-    details = data.get("details") if isinstance(data, dict) else None
     meters: list[Meter] = []
-    for row in (details or {}).values():
+    for row in _dict(_dict(data).get("details")).values():
         if not isinstance(row, dict) or not row.get("division"):
             continue
         meters.append(
@@ -83,13 +89,15 @@ def apply_index(meters: list[Meter], payload: Any) -> None:
     """Fill the last index and the self-reading window from the index call."""
     data = unwrap(payload)
     by_installation = {m.installation_number: m for m in meters}
-    for group in data if isinstance(data, list) else []:
-        for inst in (group or {}).get("installations") or []:
+    for group in _list(data):
+        for inst in _list(_dict(group).get("installations")):
+            if not isinstance(inst, dict):
+                continue
             meter = by_installation.get(str(inst.get("installation_number")))
             if meter is None:
                 continue
             meter.last_index = to_float(inst.get("last_index"))
-            window = inst.get("next_read_dates") or {}
+            window = _dict(inst.get("next_read_dates"))
             meter.window_start = to_date(window.get("startDate"))
             meter.window_end = to_date(window.get("endDate"))
             meter.index_allowed = bool(inst.get("permite_index"))
@@ -98,8 +106,8 @@ def apply_index(meters: list[Meter], payload: Any) -> None:
 def parse_invoices(payload: Any) -> list[Invoice]:
     data = unwrap(payload)
     invoices: list[Invoice] = []
-    for group in data if isinstance(data, list) else []:
-        for row in (group or {}).get("invoices") or []:
+    for group in _list(data):
+        for row in _list(_dict(group).get("invoices")):
             if not isinstance(row, dict):
                 continue
             invoices.append(

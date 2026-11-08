@@ -88,6 +88,24 @@ def test_odd_shapes_never_raise():
         assert parser.parse_balance(bad) == (None, {})
 
 
+def test_wrong_container_types_never_raise():
+    meter = models.Meter("gaz", "555")
+    for bad in ("x", 5, ["x"], {"k": "x"}):
+        assert parser.parse_places(P.envelope({"places_of_consumption": bad})) == []
+        assert parser.parse_divisions(P.envelope({"details": bad})) == []
+        assert parser.parse_invoices(P.envelope([bad, {"invoices": bad}])) == []
+        parser.apply_index([meter], P.envelope([bad, {"installations": bad}]))
+        parser.apply_index(
+            [meter],
+            P.envelope([{"installations": [{"installation_number": "555", "next_read_dates": bad}]}]),
+        )
+        assert meter.window_start is None
+    place = parser.parse_places(
+        P.envelope({"places_of_consumption": [{"poc_number": "1", "address": "x", "cont_contract": 5}]})
+    )
+    assert place[0].contract_accounts == [] and place[0].address is None
+
+
 def test_junk_rows_are_skipped():
     assert parser.parse_places(P.envelope({"places_of_consumption": ["x", {"pa": "1"}]})) == []
     assert parser.parse_divisions(P.envelope({"details": {"k": "x", "j": {"division": None}}})) == []
